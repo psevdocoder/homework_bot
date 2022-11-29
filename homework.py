@@ -136,7 +136,6 @@ def main():
             current_timestamp = response.get('current_date')
         except IndexError:
             message = 'Статус работы не изменился'
-            # send_message(bot, message)
             logging.info(message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
