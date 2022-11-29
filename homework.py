@@ -23,8 +23,6 @@ SEND_MESSAGE_FAILURE = '{error}, {message}'
 ENV_VAR_IS_MISSING = 'Отсутствует переменная окружения'
 ENV_VAR_IS_EMPTY = 'Пустая переменная окружения'
 
-
-
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -62,7 +60,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(current_timestamp):
-    """Делает запрос к API-сервиса. В случае успеха, возвращает json ответ"""
+    """Делает запрос к API-сервиса. В случае успеха, возвращает json ответ."""
     timestamp = current_timestamp
     params = {'from_date': timestamp}
     try:
@@ -110,7 +108,6 @@ def check_response(response):
 
 def parse_status(homework):
     """Возвращает текст сообщения от ревьюера."""
-
     homework_name = homework.get('homework_name')
     if 'homework_name' not in homework:
         raise KeyError(f'Отсутствует ключ: {homework_name}')
