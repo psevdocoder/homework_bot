@@ -1,14 +1,18 @@
 import logging
 import os
+import sys
 import time
+from http import HTTPStatus
 from pathlib import Path
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
+from const_messages import ENV_VAR_IS_EMPTY, ENV_VAR_IS_MISSING, \
+    SEND_MESSAGE_FAILURE, CONNECTION_ERROR, WRONG_ENDPOINT
 from exceptions import MessageSendError, NetworkError, EndpointError, \
-    ResponseFormatError, ServiceError, EnvVarsError
+    ResponseFormatError, ServiceError
 
 load_dotenv()
 
@@ -16,12 +20,6 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-
-CONNECTION_ERROR = '{error}, {url}, {headers}, {params}'
-WRONG_ENDPOINT = '{response_status}, {url}, {headers}, {params}'
-SEND_MESSAGE_FAILURE = '{error}, {message}'
-ENV_VAR_IS_MISSING = 'Отсутствует переменная окружения'
-ENV_VAR_IS_EMPTY = 'Пустая переменная окружения'
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -36,26 +34,27 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    for key in (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ENDPOINT):
-        if key is None:
-            logging.critical(ENV_VAR_IS_MISSING)
-            return False
-        if not key:
-            logging.critical(ENV_VAR_IS_EMPTY)
-            return False
+    env_var = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ENDPOINT]
+    if not all(env_var):
+        logging.critical(ENV_VAR_IS_EMPTY)
+        return False
+    if None in env_var:
+        logging.critical(ENV_VAR_IS_MISSING)
+        return False
     return True
 
 
 def send_message(bot, message):
     """Отправляет сообщение пользователю в Телеграм."""
     try:
+        logging.info(f'Trying to send message{message}')
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     except Exception as error:
         logging.error(SEND_MESSAGE_FAILURE.format(
             error=error,
             message=message,
         ))
-        raise MessageSendError
+        raise MessageSendError(error)
     logging.debug(f'Message "{message}" is sent')
 
 
@@ -63,8 +62,9 @@ def get_api_answer(current_timestamp):
     """Делает запрос к API-сервиса. В случае успеха, возвращает json ответ."""
     timestamp = current_timestamp
     params = {'from_date': timestamp}
+    request_params = dict(url=ENDPOINT, headers=HEADERS, params=params)
     try:
-        response = requests.get(url=ENDPOINT, headers=HEADERS, params=params)
+        response = requests.get(**request_params)
     except Exception as error:
         raise NetworkError(CONNECTION_ERROR.format(
             error=error,
@@ -73,7 +73,7 @@ def get_api_answer(current_timestamp):
             params=params
         ))
     response_status = response.status_code
-    if response_status != 200:
+    if response_status != HTTPStatus.OK:
         raise EndpointError(WRONG_ENDPOINT.format(
             response_status=response_status,
             url=ENDPOINT,
@@ -83,7 +83,7 @@ def get_api_answer(current_timestamp):
     try:
         return response.json()
     except Exception as error:
-        raise ResponseFormatError(f'Формат не json: {error}')
+        raise ResponseFormatError(f'Not a json format: {error}')
 
 
 def check_response(response):
@@ -92,18 +92,14 @@ def check_response(response):
     Проверяет валидность её статуса.
     """
     if not isinstance(response, dict):
-        raise TypeError
+        raise TypeError('Response doesn`t conform response type')
     if 'homeworks' not in response:
-        raise KeyError
-
+        raise KeyError('Missing `homeworks` key in response')
     if not isinstance(response['homeworks'], list):
-        raise TypeError
+        raise TypeError('Homework data doesn`t conform list type')
     if 'code' in response:
         raise ServiceError(response.get('code'))
-    if response['homeworks']:
-        return response['homeworks'][0]
-    else:
-        raise IndexError('Список пуст')
+    return response['homeworks']
 
 
 def parse_status(homework):
@@ -122,7 +118,8 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise EnvVarsError('Ошибка переменной окружения')
+        logging.critical('Ошибка переменной окружения')
+        sys.exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
 
@@ -130,10 +127,14 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
             homework = check_response(response)
-            message = parse_status(homework)
-            send_message(bot, message)
-            logging.info(homework)
-            current_timestamp = response.get('current_date')
+            if not homework:
+                message = 'Статус работы не изменился'
+                logging.info(message)
+            else:
+                message = parse_status(homework[0])
+                send_message(bot, message)
+                logging.info(homework)
+                current_timestamp = response.get('current_date')
         except IndexError:
             message = 'Статус работы не изменился'
             logging.info(message)
