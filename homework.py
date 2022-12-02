@@ -9,8 +9,8 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from const_messages import ENV_VAR_IS_EMPTY, ENV_VAR_IS_MISSING, \
-    SEND_MESSAGE_FAILURE, CONNECTION_ERROR, WRONG_ENDPOINT
+from const_messages import SEND_MESSAGE_FAILURE, CONNECTION_ERROR,\
+    WRONG_ENDPOINT
 from exceptions import MessageSendError, NetworkError, EndpointError, \
     ResponseFormatError, ServiceError
 
