@@ -34,14 +34,7 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    env_var = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ENDPOINT]
-    if not all(env_var):
-        logging.critical(ENV_VAR_IS_EMPTY)
-        return False
-    if None in env_var:
-        logging.critical(ENV_VAR_IS_MISSING)
-        return False
-    return True
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ENDPOINT])
 
 
 def send_message(bot, message):
